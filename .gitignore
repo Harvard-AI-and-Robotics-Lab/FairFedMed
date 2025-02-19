@@ -1,0 +1,47 @@
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.egg-info/
+
+# Node.js
+node_modules/
+npm-debug.log
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+
+# Environment files
+.env
+
+# data
+DATA/
+*.tar.gz
+
+# output
+output/
+output_iclr/
+
+# notebooks
+notebooks/
+
+scripts/*
+!scripts/fairfedlora_fairfedmed*
