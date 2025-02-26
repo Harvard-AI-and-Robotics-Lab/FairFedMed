@@ -1,7 +1,7 @@
 
-## Dataset [FairFedMed]((https://drive.google.com/drive/folders/1L5RVU3x4sgJST2WQTWJrQAHNSRFbnQJn?usp=drive_link)) 
+## Dataset [FairFedMed]((https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)) 
 
-You can download [FairFedMed](https://drive.google.com/drive/folders/1L5RVU3x4sgJST2WQTWJrQAHNSRFbnQJn?usp=drive_link) dataset (56GB) from our official [Google Drive](https://drive.google.com/drive/folders/1L5RVU3x4sgJST2WQTWJrQAHNSRFbnQJn?usp=drive_link). It consists of paired 2D SLO fundus images and 3D OCT B-Scans from 15,165 patients for glaucoma detection, along with six different demographic attributes: age, gender, race, ethnicity, preferred language, and
+You can download [FairFedMed](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs) dataset (56GB) from our official [Google Drive](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs). It consists of paired 2D SLO fundus images and 3D OCT B-Scans from 15,165 patients for glaucoma detection, along with six different demographic attributes: age, gender, race, ethnicity, preferred language, and
 marital status.
 
 ### Data format
