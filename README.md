@@ -1,12 +1,17 @@
+# FairFedMed: Benchmarking Group Fairness in Federated Medical Imaging with FairLoRA
+<p align="center">
+  <a href="https://arxiv.org/abs/2508.00873"><strong>Paper</strong></a> ·
+  <a href="[https://arxiv.org/abs/2508.00873](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)"><strong>Dataset</strong></a> 
+</p>
 
-## Dataset [FairFedMed]((https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)) 
+## Dataset [FairFedMed](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)
 
 You can download [FairFedMed](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs) dataset (56GB) from our official [Google Drive](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs). It consists of paired 2D SLO fundus images and 3D OCT B-Scans from 15,165 patients for glaucoma detection, along with six different demographic attributes: age, gender, race, ethnicity, preferred language, and
 marital status.
 
 ### Data format
 **Dataset structure:**
-```
+```json
 DATA/
   ├── fairfedmed/
   │   ├── all  # a dir that stores all raw data files
@@ -46,11 +51,11 @@ Format: Group Name: [Number of Train Samples, Number of Test Samples]
 
 ![fairfedmed](assets/data_fairfedmed.png)
 
-## Methodology [(FairFedLoRA)](trainers/GLP_OT_SVLoRA.py)
-Comparison of three federated learning pipelines: (a) the fully parameter-updated FL, (b) the prompt learning-based FL, and (c) our proposed FairFedLoRA.
+## Methodology [(FairLoRA)](trainers/GLP_OT_SVLoRA.py)
+Comparison of three federated learning pipelines: (a) the fully parameter-updated FL, (b) the prompt learning-based FL, and (c) our proposed FairLoRA.
 ![Overwiew](assets/fl_types.png)
 
-Overview of our proposed FairFedLoRA, a group fairness-aware federated learning model. 
+Overview of our proposed FairLoRA, a group fairness-aware federated learning model. 
 ![fl_types](assets/method_fairfedlora.png)
 
 
@@ -74,9 +79,9 @@ sh scripts/fairfedlora_fairfedmed_oct_rn50.sh  # ResNet50 backbone
 
 ### Experimental Results
 
-We compare FairFedLoRA with traditional fully parameter-updated methods, including [FedAvg](https://arxiv.org/pdf/2104.11375) and [FedHEAL](https://github.com/yuhangchen0/FedHEAL), as well as prompt learning-based models, such as [PromptFL](https://github.com/PEILab-Federated-Learning/PromptFL) and [FedOTP](https://github.com/HongxiaLee/FedOTP), both based on [CLIP](https://github.com/openai/CLIP). 
+We compare FairLoRA with traditional fully parameter-updated methods, including [FedAvg](https://arxiv.org/pdf/2104.11375) and [FedHEAL](https://github.com/yuhangchen0/FedHEAL), as well as prompt learning-based models, such as [PromptFL](https://github.com/PEILab-Federated-Learning/PromptFL) and [FedOTP](https://github.com/HongxiaLee/FedOTP), both based on [CLIP](https://github.com/openai/CLIP). 
 
-In summary, the experimental results highlight the effectiveness of FairFedLoRA in improving both performance and fairness compared to existing FL models. While traditional fully parameter-updated FL methods achieve strong overall accuracy, they fail to ensure fairness across diverse demographic groups. Prompt-learning-based FL models show improved fairness but suffer from a decline in performance due to limitations in adapting to medical imaging data. FairFedLoRA, on the other hand, strikes a balance between high classification performance and enhanced fairness across race, language, and ethnicity attributes. This makes it a promising approach for ensuring both high accuracy and equitable outcomes in fairness-aware medical FL tasks.
+In summary, the experimental results highlight the effectiveness of FairLoRA in improving both performance and fairness compared to existing FL models. While traditional fully parameter-updated FL methods achieve strong overall accuracy, they fail to ensure fairness across diverse demographic groups. Prompt-learning-based FL models show improved fairness but suffer from a decline in performance due to limitations in adapting to medical imaging data. FairLoRA, on the other hand, strikes a balance between high classification performance and enhanced fairness across race, language, and ethnicity attributes. This makes it a promising approach for ensuring both high accuracy and equitable outcomes in fairness-aware medical FL tasks.
 
 ![2d_fundus_result](assets/2D_fundus_results.png)
 
