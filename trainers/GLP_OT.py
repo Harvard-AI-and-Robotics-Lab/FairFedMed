@@ -303,7 +303,7 @@ class CustomCLIP(nn.Module):
 
     def forward(self, image):
         b, c, h, w = image.shape
-        if self.cfg.DATASET.NAME == "HarvardOph":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             image = image / 255.
             if self.is_3d_input:
                 # split 3d input into multiple slices to process
@@ -494,7 +494,7 @@ class GLP_OT(TrainerX):
             "loss": loss.item(),
             "acc": compute_accuracy(output, label)[0].item(),
         }
-        if self.cfg.DATASET.NAME == "HarvardOph":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             loss_summary["auc"] = compute_auc(output_prob, label).item()
 
         if (self.batch_idx + 1) == self.num_batches:
@@ -508,7 +508,7 @@ class GLP_OT(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
 
-        if self.cfg.DATASET.NAME == "HarvardOph":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             # input = input / 255.
             # input = input - self.pixel_mean.reshape(1,-1,1,1).to(input.device)
             # input = input / self.pixel_std.reshape(1,-1,1,1).to(input.device)
@@ -524,7 +524,7 @@ class GLP_OT(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
 
-        if self.cfg.DATASET.NAME == "HarvardOph":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             # input = input / 255.
             # input = input - self.pixel_mean.reshape(1,-1,1,1).to(input.device)
             # input = input / self.pixel_std.reshape(1,-1,1,1).to(input.device)

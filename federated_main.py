@@ -101,6 +101,7 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.GLP_OT_LORA.LOCAL_S = args.lora_local_s
     cfg.TRAINER.GLP_OT_LORA.GLOBAL_S = args.lora_global_s
     cfg.TRAINER.LAMBDA_FAIRNESS = args.lambda_fairness
+    cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR = args.disable_attr
 
     cfg.DATASET.SUBSAMPLE_CLASSES = "all"  # all, base or new
     cfg.DATASET.USERS = args.num_users  # number of clients
@@ -139,6 +140,7 @@ def setup_cfg(args):
 
     cfg.DATALOADER.TRAIN_X.BATCH_SIZE = args.train_batch_size
     cfg.DATALOADER.TEST.BATCH_SIZE = args.test_batch_size
+    cfg.DATASET.DISEASE_TYPE = args.disease_type
 
     # 3. From input arguments
     reset_cfg(cfg, args)
@@ -180,13 +182,13 @@ def main(args):
 
     local_trainer = build_trainer(cfg)
     local_trainer.fed_before_train()
-    count_parameters(local_trainer.model,"prompt_learner")
+    count_parameters(local_trainer.model, "prompt_learner")
     count_parameters(local_trainer.model, "image_encoder")
     count_parameters(local_trainer.model, "text_encoder")
 
     # local_trainers = {net_i: None for net_i in range(cfg.DATASET.USERS)}
     datanumber_client = []
-    datanumber_client_by_attr = []
+    datanumber_client_by_attr = [] if not cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR else None
     if args.trainer == 'CLIP':
         global_weights = copy.deepcopy(local_trainer.model.state_dict())
     else:
@@ -195,9 +197,10 @@ def main(args):
             datanumber_client.append(
                 len(local_trainer.fed_train_loader_x_dict[net_i].dataset)
             )
-            datanumber_client_by_attr.append(
-                local_trainer.fed_train_loader_x_dict[net_i].dataset.count_by_attribute(args.attribute_type)
-            )
+            if not cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR:
+                datanumber_client_by_attr.append(
+                    local_trainer.fed_train_loader_x_dict[net_i].dataset.count_by_attribute(args.attribute_type)
+                )
             # local_trainer.fed_before_train()
             # local_trainers[net_i] = local_trainer
             # local_weights[net_i] = copy.deepcopy(local_trainer.model.state_dict())
@@ -475,7 +478,7 @@ def main(args):
                         print("Test acc of dslr", np.mean(global_test_acc[6:9]),"±",np.std(global_test_acc[6:9]))
                         print("Test acc of webcam", np.mean(global_test_acc[9:12]),"±",np.std(global_test_acc[9:12]))
                         print("Test acc of all",np.mean(global_test_acc),np.std(global_test_acc))
-                elif cfg.DATASET.NAME == "HarvardOph":
+                elif cfg.DATASET.NAME == "FairFedMed":
                     pass
                 print("------------local test finish-------------")
                 print("Epoch on server :", epoch)
@@ -483,12 +486,17 @@ def main(args):
         
         elif args.model == 'FedOTPLinearFT':  
             # global prompt + local prompt + lora on image encoder
-            if epoch == 0:
-                idxs_users = list(range(0, cfg.DATASET.USERS))
-            else:              
-                m = max(int(args.frac * args.num_users), 1)
-                idxs_users = np.random.choice(range(args.num_users), m, replace=False)
-            print("idxs_users", idxs_users)
+            assert isinstance(args.idxs_users_train, list), "idxs_users_train must be a list"
+            assert isinstance(args.idxs_users_test, list), "idxs_users_test must be a list"
+            if len(args.idxs_users_train) > 0:
+                idxs_users = args.idxs_users_train
+            else:
+                if epoch == 0:
+                    idxs_users = list(range(0, cfg.DATASET.USERS))
+                else:              
+                    m = max(int(args.frac * args.num_users), 1)
+                    idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+            
             print("------------local train start epoch:", epoch, "-------------")
             for idx in idxs_users:
                 if epoch == 0:
@@ -508,7 +516,10 @@ def main(args):
 
             print("------------local test start-------------")
             results = []
-            all_users = list(range(0, cfg.DATASET.USERS))
+            if len(args.idxs_users_test) > 0:
+                all_users = args.idxs_users_test
+            else:
+                all_users = list(range(0, cfg.DATASET.USERS))
             
             for idx in all_users:
                 local_weights_per[idx] = copy.deepcopy(global_weights)
@@ -584,7 +595,7 @@ def main(args):
                         print("Test acc of dslr", np.mean(global_test_acc[6:9]),"±",np.std(global_test_acc[6:9]))
                         print("Test acc of webcam", np.mean(global_test_acc[9:12]),"±",np.std(global_test_acc[9:12]))
                         print("Test acc of all",np.mean(global_test_acc),np.std(global_test_acc))
-                elif cfg.DATASET.NAME == "HarvardOph":
+                elif cfg.DATASET.NAME == "FairFedMed":
                     pass
                 print("------------local test finish-------------")
                 print("Epoch on server :", epoch)
@@ -592,19 +603,22 @@ def main(args):
         
         elif args.model == 'FedOTPLoRA': # fairlora is based on FedOPT framework
             # global prompt + local prompt + lora on image encoder
-            if epoch == 0:
-                idxs_users = list(range(0, cfg.DATASET.USERS))
-            else:              
-                m = max(int(args.frac * args.num_users), 1)
-                idxs_users = np.random.choice(range(args.num_users), m, replace=False)
-            print("idxs_users", idxs_users)
+            if len(args.idxs_users_train) > 0:
+                idxs_users = args.idxs_users_train
+            else:
+                if epoch == 0:
+                    idxs_users = list(range(0, cfg.DATASET.USERS))
+                else:              
+                    m = max(int(args.frac * args.num_users), 1)
+                    idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+            
             print("------------local train start epoch:", epoch, "-------------")
             for idx in idxs_users:
                 if epoch == 0:
                     local_trainer.model.load_state_dict(global_weights, strict=False)
                 else:
                     local_trainer.model.load_state_dict(local_weights_per[idx], strict=False)
-
+           
                 local_trainer.train(idx=idx, global_epoch=epoch, is_fed=True, is_last_client=idx==idxs_users[-1])
                 local_weight = local_trainer.model.state_dict()
                 local_weights_0[idx] = copy.deepcopy(local_weight['prompt_learner.ctx'][args.avg_prompt:args.num_prompt])
@@ -623,15 +637,19 @@ def main(args):
 
             print("------------local test start-------------")
             results = []
-            all_users = list(range(0, cfg.DATASET.USERS))
+            if len(args.idxs_users_test) > 0:
+                all_users = args.idxs_users_test
+            else:
+                all_users = list(range(0, cfg.DATASET.USERS))
             
             for idx in all_users:
                 local_weights_per[idx] = copy.deepcopy(global_weights)
-                # keep local embeddings
-                local_weights_per[idx]['prompt_learner.ctx'][args.avg_prompt:args.num_prompt] = local_weights_0[idx]
-                if cfg.TRAINER.GLP_OT_LORA.LOCAL_S:
-                    for k, v in local_weights_1[idx].items():
-                        local_weights_per[idx][k] = v
+                if idx in args.idxs_users_train:
+                    # keep local embeddings
+                    local_weights_per[idx]['prompt_learner.ctx'][args.avg_prompt:args.num_prompt] = local_weights_0[idx]
+                    if cfg.TRAINER.GLP_OT_LORA.LOCAL_S:
+                        for k, v in local_weights_1[idx].items():
+                            local_weights_per[idx][k] = v
 
             if args.num_users >= 50:
                 if epoch >= 140:
@@ -671,13 +689,13 @@ def main(args):
                     if len(results[k]) > 3:
                         global_test_auc.append(results[k][3])  # "auc"
                 global_time_list.append(time.time() - start)
-                global_test_acc_list.append(sum(global_test_acc)/len(global_test_acc))
+                global_test_acc_list.append(sum(global_test_acc) / len(global_test_acc))
                 global_test_error_list.append(sum(global_test_error) / len(global_test_error))
                 global_test_f1_list.append(sum(global_test_f1) / len(global_test_f1))
                 if len(results[k]) > 3:
                     global_test_auc_list.append(sum(global_test_auc) / len(global_test_auc))
                 global_epoch_list.append(epoch)
-                print("Global test acc:", sum(global_test_acc)/len(global_test_acc))
+                print("Global test acc:", sum(global_test_acc) / len(global_test_acc))
                 print("Global test error:", sum(global_test_error) / len(global_test_error))
                 print("Global test macro_f1:", sum(global_test_f1) / len(global_test_f1))
                 if len(results[k]) > 3:
@@ -701,7 +719,7 @@ def main(args):
                         print("Test acc of dslr", np.mean(global_test_acc[6:9]),"±",np.std(global_test_acc[6:9]))
                         print("Test acc of webcam", np.mean(global_test_acc[9:12]),"±",np.std(global_test_acc[9:12]))
                         print("Test acc of all",np.mean(global_test_acc),np.std(global_test_acc))
-                elif cfg.DATASET.NAME == "HarvardOph":
+                elif cfg.DATASET.NAME == "FairFedMed":
                     pass
                 print("------------local test finish-------------")
                 print("Epoch on server :", epoch)
@@ -786,6 +804,7 @@ if __name__ == "__main__":
     parser.add_argument('--mu', type=float, default=0.5, help='The parameter for fedprox')
 
     # parameters of datasets
+    parser.add_argument('--disease_type', type=str, default='heart.attack', help='heart.attack, heart.ckmb, heart.troponin, heart.proBNP')
     # caltech101, oxford_flowers, oxford_pets, food101 and dtd
     parser.add_argument('--iid', default=False, help="is iid, control the iid of caltech101, oxford_flowers, oxford_pets, food101 and dtd")
     parser.add_argument('--num_shots', type=int, default=2, help="number of shots in few shot setting")
@@ -799,7 +818,8 @@ if __name__ == "__main__":
     parser.add_argument('--num_domain', type=int, default=4, help="number of domain")
     # attribute
     parser.add_argument('--attribute_type', type=str, default='race',help='the attribute of data used in medical data, it can be gender, race, langugae, ...')
-    parser.add_argument('--attributes', type=list, default=['gender', 'race', 'ethnicity', 'language', 'maritalstatus'], help='the data attributes in medical data')
+    # parser.add_argument('--attributes', type=list, default=['gender', 'race', 'ethnicity', 'language', 'maritalstatus'], help='the data attributes used in medical data')
+    parser.add_argument('--attributes', type=str, nargs='+', default=['gender', 'race', 'ethnicity', 'language', 'maritalstatus'], help='List of attributes used in medical data')
     parser.add_argument('--modality_type', type=str, default='slo_fundus', help='slo_fundus, oct_bscans')
     parser.add_argument('--dim_per_3d_slice', type=int, default=16, help='split oct_bscans into multuple slices, dim of each slice')
     parser.add_argument('--input_no_transform', type=bool, default=False, help='If True, tfm_train and tfm_test will be None.')
@@ -830,6 +850,10 @@ if __name__ == "__main__":
         help='if True, we use a set of global sigular values, which is used to comminicate with golbal weights')
     parser.add_argument('--lambda_fairness', type=float, default=0.0, help='loss = cls_loss + lambda_fairness * fairness_loss')
 
+    parser.add_argument('--idxs_users_train', type=list, default=[], help='list of users to train')
+    parser.add_argument('--idxs_users_test', type=list, default=[], help='list of users to test')
+    parser.add_argument('--disable_attr', action="store_true", help='do not use attribute for training / testing')
+
     # parameters of path
     parser.add_argument('--logdir', type=str, required=False, default="./logs/", help='Log directory path')
     parser.add_argument("--root", type=str, default="/DATA/", help="path to dataset")
@@ -847,4 +871,11 @@ if __name__ == "__main__":
     parser.add_argument("opts", default=None, nargs=argparse.REMAINDER, help="modify config options using the command-line")
 
     args = parser.parse_args()
+    args.idxs_users_train = [int(idx) for idx in args.idxs_users_train]
+    args.idxs_users_test = [int(idx) for idx in args.idxs_users_test]
+    for idx in args.idxs_users_train:
+        assert idx < args.num_users, "idx of users to train must be less than num_users"
+    for idx in args.idxs_users_test:
+        assert idx < args.num_users, "idx of users to test must be less than num_users"
+    print("args.attributes", args.attributes)
     main(args)

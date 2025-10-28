@@ -9,7 +9,7 @@ from torch.utils.data import Dataset as TorchDataset
 
 from Dassl.dassl.utils import read_image
 from Dassl.dassl.data.datasets import DATASET_REGISTRY
-from datasets.caltech101 import Caltech101
+# from datasets.caltech101 import Caltech101
 from collections import defaultdict
 
 from .datasets import build_dataset
@@ -40,8 +40,8 @@ def build_data_loader(
 
     if cfg.DATASET.NAME == "Cifar100" or cfg.DATASET.NAME == "Cifar10":
         dataset_wrapper = DatasetCifar100
-    elif cfg.DATASET.NAME == "FairFedMed":
-        dataset_wrapper = DatasetWrapperOph
+    elif cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic", "WangGrant"]:
+        dataset_wrapper = DatasetWrapperAttr
     elif dataset_wrapper is None:
         dataset_wrapper = DatasetWrapper
 
@@ -399,7 +399,7 @@ class DatasetCifar100(TorchDataset):
 
         return img
 
-class DatasetWrapperOph(TorchDataset):
+class DatasetWrapperAttr(TorchDataset):
 
     def __init__(self, cfg, data_source, transform=None, is_train=False):
         self.cfg = cfg
@@ -431,8 +431,16 @@ class DatasetWrapperOph(TorchDataset):
 
     def __len__(self):
         return len(self.data_source)
-    
+
     def count_by_attribute(self, attr):
+        if self.cfg.DATASET.NAME == "FairFedMed":
+            return self.count_by_attribute_fairfedmed(attr)
+        elif self.cfg.DATASET.NAME == "FedChexMimic":
+            return self.count_by_attribute_fedchexmimic(attr)
+        else:
+            raise ValueError(f"Dataset {self.cfg.DATASET.NAME} not supported")
+
+    def count_by_attribute_fairfedmed(self, attr):
         data_attr = []
         for item, data_file in enumerate(self.data_source.data_files):
             data_file = os.path.join(
@@ -441,6 +449,19 @@ class DatasetWrapperOph(TorchDataset):
             )
             raw_data = np.load(data_file, allow_pickle=True)
             data_attr.append(int(raw_data[attr]))
+        
+        count_group_num = {group_id: 0 for group_id in list(set(data_attr))}
+        for group_id in data_attr:
+            count_group_num[group_id] += 1
+
+        return [
+            count_group_num[group_id] if group_id in count_group_num else 0
+            for group_id in range(max(list(set(data_attr)))+1)
+        ]
+
+    def count_by_attribute_fedchexmimic(self, attr):
+        index = self.data_source.attributes.index(attr)
+        data_attr = self.data_source.data_attributes[index]
         
         count_group_num = {group_id: 0 for group_id in list(set(data_attr))}
         for group_id in data_attr:

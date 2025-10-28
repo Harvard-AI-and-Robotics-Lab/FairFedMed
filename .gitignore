@@ -43,5 +43,4 @@ output_iclr/
 # notebooks
 notebooks/
 
-scripts/*
-!scripts/fairfedlora_fairfedmed*
+.claude/

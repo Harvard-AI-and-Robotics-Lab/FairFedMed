@@ -9,6 +9,9 @@ from datasets.dtd import DescribableTextures
 from datasets.domainnet import DomainNet
 from datasets.office import Office
 from datasets.FairFedMed import FairFedMed
+from datasets.FedChexMimic import FedChexMimic
+from datasets.WangGrant import WangGrant
+
 
 DATASET_REGISTRY = Registry("DATASET")
 # DATASET_REGISTRY.register(Caltech101)
@@ -21,7 +24,8 @@ DATASET_REGISTRY.register(DescribableTextures)
 DATASET_REGISTRY.register(DomainNet)
 DATASET_REGISTRY.register(Office)
 DATASET_REGISTRY.register(FairFedMed)
-
+DATASET_REGISTRY.register(FedChexMimic)
+DATASET_REGISTRY.register(WangGrant)
 
 def build_dataset(cfg):
     avai_datasets = DATASET_REGISTRY.registered_names()

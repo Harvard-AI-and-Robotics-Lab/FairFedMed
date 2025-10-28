@@ -34,7 +34,7 @@ class Classification_oph:
         if self._per_class_res is not None:
             self._per_class_res = defaultdict(list)
 
-    def process(self, mo, gt, attr):
+    def process(self, mo, gt, attr=None):
         # mo (torch.Tensor): model output logits [batch, num_classes]
         # gt (torch.LongTensor): ground truth [batch]
         # Convert to float32 if the dtype is float16
@@ -46,7 +46,8 @@ class Classification_oph:
         else:
             self._pred_prob.append(mo.softmax(-1))  
         self._gt.append(gt)
-        self._attr.append(attr)
+        if attr is not None:
+            self._attr.append(attr)
 
         pred = mo.max(1)[1]
         matches = pred.eq(gt).float()
@@ -75,7 +76,10 @@ class Classification_oph:
 
         pred_prob = torch.cat(self._pred_prob).cpu().numpy()
         gt = torch.cat(self._gt).cpu().numpy()
-        attr = torch.cat(self._attr, dim=1).cpu().numpy()  
+        if len(self._attr) > 0: 
+            attr = torch.cat(self._attr, dim=1).cpu().numpy() 
+        else:
+            attr = None
         # assert (pred_prob.sum(-1) == 1).all(), \
         #     'The probability estimates must sum to 1 across the possible classes.'
         # overall auc
@@ -99,48 +103,49 @@ class Classification_oph:
             f"* auc: {auc:.2f}%"
         )
 
-        overall_acc, esaccs_by_attrs, \
-        overall_auc, esaucs_by_attrs, aucs_by_attrs, \
-        dpds, eods, aods, between_group_disparity = evalute_comprehensive_perf_scores(
-            pred_prob, gt, attr
-        )
+        if attr is not None:
+            overall_acc, esaccs_by_attrs, \
+            overall_auc, esaucs_by_attrs, aucs_by_attrs, \
+            dpds, eods, aods, between_group_disparity = evalute_comprehensive_perf_scores(
+                pred_prob, gt, attr
+            )
 
-        print(
-            "=> result_oph\n"
-            f"* overall_acc: {(100*overall_acc):.2f}%\n" 
-            f"* overall_auc: {(100*overall_auc):.2f}%\n"
-        )
+            print(
+                "=> result_oph\n"
+                f"* overall_acc: {(100*overall_acc):.2f}%\n" 
+                f"* overall_auc: {(100*overall_auc):.2f}%\n"
+            )
 
-        for idx in range(len(attr)):
-            attr_cur = self.cfg.DATASET.ATTRIBUTES[idx]
-            print(
-                f"* esacc_{attr_cur}: {(100*esaccs_by_attrs[idx]):.2f}%\n"
-                f"* esauc_{attr_cur}: {(100*esaucs_by_attrs[idx]):.2f}%\n" 
-                f"* dpd_{attr_cur}: {(100*dpds[idx]):.2f}%\n"
-                f"* eod_{attr_cur}: {(100*eods[idx]):.2f}%\n"
-                f"* aod_{attr_cur}: {(100*aods[idx]):.2f}%"
-            )
-            print(
-                '\n'.join([
-                    f"* auc_{attr_cur}_{str(j)}: {(100*auc):.2f}%" 
-                    for j, auc in enumerate(aucs_by_attrs[idx])
-                ])
-            )
-            print(
-                ''.join([
-                    f"* between_group_disparity_{attr_cur}_{str(j)}: {x:.4f}\n" 
-                    for j, x in enumerate(between_group_disparity[idx])
-                ])
-            )
+            for idx in range(len(attr)):
+                attr_cur = self.cfg.DATASET.ATTRIBUTES[idx]
+                print(
+                    f"* esacc_{attr_cur}: {(100*esaccs_by_attrs[idx]):.2f}%\n"
+                    f"* esauc_{attr_cur}: {(100*esaucs_by_attrs[idx]):.2f}%\n" 
+                    f"* dpd_{attr_cur}: {(100*dpds[idx]):.2f}%\n"
+                    f"* eod_{attr_cur}: {(100*eods[idx]):.2f}%\n"
+                    f"* aod_{attr_cur}: {(100*aods[idx]):.2f}%"
+                )
+                print(
+                    '\n'.join([
+                        f"* auc_{attr_cur}_{str(j)}: {(100*auc):.2f}%" 
+                        for j, auc in enumerate(aucs_by_attrs[idx])
+                    ])
+                )
+                print(
+                    ''.join([
+                        f"* between_group_disparity_{attr_cur}_{str(j)}: {x:.4f}\n" 
+                        for j, x in enumerate(between_group_disparity[idx])
+                    ])
+                )
         
-        results['overall_acc'] = overall_acc
-        results['esaccs_by_attrs'] = esaccs_by_attrs  # list
-        results['overall_auc'] = overall_auc
-        results['esaucs_by_attrs'] = esaucs_by_attrs  # list
-        results['aucs_by_attrs'] = aucs_by_attrs      # list
-        results['dpds'] = dpds  # list
-        results['eods'] = eods  # list
-        results['aods'] = aods  # list
-        results['between_group_disparity'] = between_group_disparity  # list
+            results['overall_acc'] = overall_acc
+            results['esaccs_by_attrs'] = esaccs_by_attrs  # list
+            results['overall_auc'] = overall_auc
+            results['esaucs_by_attrs'] = esaucs_by_attrs  # list
+            results['aucs_by_attrs'] = aucs_by_attrs      # list
+            results['dpds'] = dpds  # list
+            results['eods'] = eods  # list
+            results['aods'] = aods  # list
+            results['between_group_disparity'] = between_group_disparity  # list
 
         return results

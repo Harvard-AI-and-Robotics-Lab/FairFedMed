@@ -56,13 +56,15 @@ def average_weights_EMA(w_g, w, idxs_users, datanumber_client, datanumber_client
     - Updated EMA weights.
     """
     total_data_points = sum([datanumber_client[r] for r in idxs_users])
-    datanumber_client_by_attr = torch.tensor(datanumber_client_by_attr)
-    total_datanumber_client_by_attr = datanumber_client_by_attr[idxs_users].sum(0)
+    if datanumber_client_by_attr is not None:
+        datanumber_client_by_attr = torch.tensor(datanumber_client_by_attr)
+        total_datanumber_client_by_attr = datanumber_client_by_attr[idxs_users].sum(0)
     
     w_avg = copy.deepcopy(w[idxs_users[0]])
     for idx in range(len(idxs_users)):
         fed_avg_freqs = datanumber_client[idxs_users[idx]] / total_data_points
-        fed_avg_freqs_by_attr = datanumber_client_by_attr[idxs_users[idx]] / total_datanumber_client_by_attr
+        if datanumber_client_by_attr is not None:
+            fed_avg_freqs_by_attr = datanumber_client_by_attr[idxs_users[idx]] / total_datanumber_client_by_attr
         
         if islist:
             if idx == 0:
@@ -72,20 +74,20 @@ def average_weights_EMA(w_g, w, idxs_users, datanumber_client, datanumber_client
         else:
             if idx == 0:
                 for key in w_avg:
-                    if 'lora_S' in key and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
+                    if 'lora_S' in key and datanumber_client_by_attr is not None and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
                         w_avg[key] = w_avg[key] * fed_avg_freqs_by_attr[:, None].to(w_avg[key].device)
                     else:
                         w_avg[key] = w_avg[key] * fed_avg_freqs
             else:
                 for key in w_avg:
-                    if 'lora_S' in key and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
+                    if 'lora_S' in key and datanumber_client_by_attr is not None and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
                         w_avg[key] += w[idxs_users[idx]][key] * fed_avg_freqs_by_attr[:, None].to(w[idxs_users[idx]][key].device)
                     else:
                         w_avg[key] += w[idxs_users[idx]][key] * fed_avg_freqs
     
     beta_decay = beta * (epoch / max(max_epoch, 1))
     for key in w_avg:
-        if shared_half_s and 'lora_S' in key and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
+        if shared_half_s and 'lora_S' in key and datanumber_client_by_attr is not None and w_avg[key].shape[0] == len(fed_avg_freqs_by_attr):
             n_groups, n_dim = w_avg[key].shape
             S_aft = torch.cat(
                 [torch.mean(w_avg[key][:, :n_dim//2], dim=0, keepdim=True).repeat(n_groups,1),

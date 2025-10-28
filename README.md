@@ -1,16 +1,56 @@
+<div align="center">
+
 # FairFedMed: Benchmarking Group Fairness in Federated Medical Imaging with FairLoRA
+
+[![Paper](https://img.shields.io/badge/Paper-TMI%202024-blue)](https://ieeexplore.ieee.org/document/11205878)
+[![arXiv](https://img.shields.io/badge/arXiv-2508.00873-b31b1b.svg)](https://arxiv.org/abs/2508.00873)
+[![Dataset](https://img.shields.io/badge/Dataset-Google%20Drive-green)](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)
+
+</div>
+
+---
+
+## 🎯 Motivation
+
 <p align="center">
-  <a href="https://arxiv.org/abs/2508.00873"><strong>Paper</strong></a> ·
-  <a href="[https://arxiv.org/abs/2508.00873](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)"><strong>Dataset</strong></a> 
+  <img src="assets/fig1.png" alt="FairFedMed Overview" width="800">
 </p>
 
-## Dataset [FairFedMed](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)
+Fairness in medical FL remains underexplored due to heterogeneous data and lack of demographic-aware benchmarks. We introduce:
 
-You can download [FairFedMed](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs) dataset (56GB) from our official [Google Drive](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs). It consists of paired 2D SLO fundus images and 3D OCT B-Scans from 15,165 patients for glaucoma detection, along with six different demographic attributes: age, gender, race, ethnicity, preferred language, and
-marital status.
+### 📊 **FairFedMed Dataset**
+First medical FL benchmark with demographic annotations
+  - **FairFedMed-Oph**: 2D/3D ophthalmology images with 6 demographic attributes
+  - **FairFedMed-Chest**: Cross-institutional CheXpert + MIMIC-CXR with 3 attributes
 
-### Data format
-**Dataset structure:**
+### 🚀 **FairLoRA Framework**
+Fairness-aware FL via SVD-based low-rank adaptation
+  - Customizes singular values per demographic group
+  - Shares singular vectors for efficiency
+  - Achieves superior performance-fairness trade-offs
+
+---
+
+## 📦 Dataset
+
+📥 **Download**: [FairFedMed Dataset on Google Drive](https://drive.google.com/open?id=11SrLJQdKwA3ELEnebTzlmZGadcxnGIiv&usp=drive_fs)
+
+### 🏥 FairFedMed-Oph
+- **Modalities**: Paired 2D SLO fundus images and 3D OCT B-Scans
+- **Scale**: 15,165 patients for glaucoma detection
+- **Demographics**: 6 attributes (age, gender, race, ethnicity, preferred language, marital status)
+
+### 🫁 FairFedMed-Chest
+- **Sources**: [CheXpert](https://stanfordmlgroup.github.io/competitions/chexpert/) + [MIMIC-CXR](https://physionet.org/content/mimic-cxr/2.1.0/)
+- **Setup**: 2 clients simulating real cross-institutional FL
+- **Demographics**: 3 attributes (age, gender, race)
+
+### 📊 Dataset Statistics
+<p align="center">
+  <img src="assets/fig2.png" alt="Dataset Statistics" width="800">
+</p>
+
+### 🗂️ Data Structure
 ```json
 DATA/
   ├── fairfedmed/
@@ -29,63 +69,126 @@ DATA/
   │   ├── meta_site{k}_ethnicity_test.csv
   │   ├── meta_site{k}_ethnicity.csv
   │   └── ...
+  ├── fedchexmimic/
+  │   ├── CheXpert-v1.0/  # symlink to CheXpert dataset
+  │   ├── mimic/  # symlink to MIMIC-CXR dataset
+  │   ├── meta_chexpert_age.csv
+  │   ├── meta_chexpert_age_train.csv
+  │   ├── meta_chexpert_age_test.csv
+  │   ├── meta_chexpert_gender.csv
+  │   ├── meta_chexpert_gender_train.csv
+  │   ├── meta_chexpert_gender_test.csv
+  │   ├── meta_chexpert_race.csv
+  │   ├── meta_chexpert_race_train.csv
+  │   ├── meta_chexpert_race_test.csv
+  │   ├── meta_mimic_age.csv
+  │   ├── meta_mimic_age_train.csv
+  │   ├── meta_mimic_age_test.csv
+  │   ├── meta_mimic_gender.csv
+  │   ├── meta_mimic_gender_train.csv
+  │   ├── meta_mimic_gender_test.csv
+  │   ├── meta_mimic_race.csv
+  │   ├── meta_mimic_race_train.csv
+  │   └── meta_mimic_race_test.csv
 ```
 
-### Dataset Attributes and Group Distribution
-The dataset includes train and test samples for each group.
+---
 
-Format: Group Name: [Number of Train Samples, Number of Test Samples]
+## 🧬 Methodology
 
-  - **Race**: [Asian, Black, White]
-    - Site1: {Asian: [335, 69], Black: [625, 133], White: [3083, 809]}
-    - Site2: {Asian: [515, 91], Black: [813, 198], White: [2715, 722]}
-    - Site3: {Asian: [229, 39], Black: [379, 83], White: [3437, 890]}
-  - **Language**: [English, Spanish, Others, Unkown]
-    - Site1: {English: [3765, 936], Spanish: [35, 15], Others: [164, 38], Unknown: [79, 22]}
-    - Site2: {English: [3609, 889], Spanish: [118, 33], Others: [234, 69], Unknown: [81, 20]}
-    - Site3: {English: [3865, 964], Spanish: [37, 10], Others: [83, 19], Unknown: [61, 19]}
-  - **Ethnicity**: [Non-hispanic, Hispanic, Unkown]
-    - Site1: {Non-hispanic: [3814, 937], Hispanic: [121, 30], Unkown: [107, 44]}
-    - Site2: {Non-hispanic: [3684, 916], Hispanic: [248, 55], Unkown: [111, 40]}
-    - Site3: {Non-hispanic: [3776, 938], Hispanic: [88, 22], Unkown: [182, 52]} 
+<p align="center">
+  <img src="assets/fig3.png" alt="FairLoRA Framework" width="800">
+</p>
 
-![fairfedmed](assets/data_fairfedmed.png)
+**[FairLoRA](trainers/GLP_OT_SVLoRA.py)**: A group fairness-aware federated learning model using SVD-based low-rank adaptation.
 
-## Methodology [(FairLoRA)](trainers/GLP_OT_SVLoRA.py)
-Comparison of three federated learning pipelines: (a) the fully parameter-updated FL, (b) the prompt learning-based FL, and (c) our proposed FairLoRA.
-![Overwiew](assets/fl_types.png)
+---
 
-Overview of our proposed FairLoRA, a group fairness-aware federated learning model. 
-![fl_types](assets/method_fairfedlora.png)
+## 🏋️ Model Training
 
+Download the dataset first, then run the training scripts:
 
-### [Model Training](scripts/fairfedlora_fairfedmed.sh)
-Download the above dataset first, then run the following code:
-```
-# 2D SLO images
+### 🏥 FairFedMed-Oph (Ophthalmology)
+```bash
+# 2D SLO fundus images
 sh scripts/fairfedlora_fairfedmed.sh       # ViT-B/16 backbone
 sh scripts/fairfedlora_fairfedmed_rn50.sh  # ResNet50 backbone
+
 # 3D OCT B-Scan images
 sh scripts/fairfedlora_fairfedmed_oct.sh       # ViT-B/16 backbone
 sh scripts/fairfedlora_fairfedmed_oct_rn50.sh  # ResNet50 backbone
 ```
 
-### [Evaluation Metrics](evaluation/evaluator_oph.py)
- - AUC
- - ESAUC
- - Group-wise AUC
- - EOD
- - SPD
+### 🫁 FairFedMed-Chest (Chest X-ray)
+```bash
+sh scripts/fedchexmimic/fairfedlora_fedchexmimic.sh  # ViT-B/16 backbone
+```
 
-### Experimental Results
+---
 
-We compare FairLoRA with traditional fully parameter-updated methods, including [FedAvg](https://arxiv.org/pdf/2104.11375) and [FedHEAL](https://github.com/yuhangchen0/FedHEAL), as well as prompt learning-based models, such as [PromptFL](https://github.com/PEILab-Federated-Learning/PromptFL) and [FedOTP](https://github.com/HongxiaLee/FedOTP), both based on [CLIP](https://github.com/openai/CLIP). 
+## 📊 Evaluation Metrics
 
-In summary, the experimental results highlight the effectiveness of FairLoRA in improving both performance and fairness compared to existing FL models. While traditional fully parameter-updated FL methods achieve strong overall accuracy, they fail to ensure fairness across diverse demographic groups. Prompt-learning-based FL models show improved fairness but suffer from a decline in performance due to limitations in adapting to medical imaging data. FairLoRA, on the other hand, strikes a balance between high classification performance and enhanced fairness across race, language, and ethnicity attributes. This makes it a promising approach for ensuring both high accuracy and equitable outcomes in fairness-aware medical FL tasks.
+| Metric | Description |
+|--------|-------------|
+| **AUC** | Area Under ROC Curve |
+| **ESAUC** | Equalized Selection AUC |
+| **Group-wise AUC** | AUC per demographic group |
+| **EOD** | Equalized Odds Difference |
+| **SPD** | Statistical Parity Difference |
 
-![2d_fundus_result](assets/2D_fundus_results.png)
+📄 [Implementation](evaluation/evaluator_oph.py)
 
-![3d_oct_result](assets/3D_oct_results.png)
+---
 
-## Acknowledge
-This code is partially derived from the [FedOTP](https://github.com/HongxiaLee/FedOTP) and [DASSL](https://github.com/KaiyangZhou/Dassl.pytorch) frameworks. Thanks!
+## 📈 Experimental Results
+
+We compare **FairLoRA** with:
+- **Traditional FL**: [FedAvg](https://arxiv.org/pdf/2104.11375), [FedHEAL](https://github.com/yuhangchen0/FedHEAL)
+- **Prompt-based FL**: [PromptFL](https://github.com/PEILab-Federated-Learning/PromptFL), [FedOTP](https://github.com/HongxiaLee/FedOTP)
+
+<p align="center">
+  <img src="assets/tab1.png" alt="Results Table 1" width="800">
+</p>
+
+<p align="center">
+  <img src="assets/tab3.png" alt="Results Table 3" width="800">
+</p>
+
+<p align="center">
+  <img src="assets/tab2.png" alt="Results Table 2" width="800">
+</p>
+
+---
+
+## 🙏 Acknowledgements
+
+This code is partially derived from:
+- [FedOTP](https://github.com/HongxiaLee/FedOTP) - Federated Optimal Transport Prompting
+- [DASSL](https://github.com/KaiyangZhou/Dassl.pytorch) - Domain Adaptation/Generalization Library
+
+---
+
+## 📝 Citation
+
+If you find this work useful, please cite:
+
+```bibtex
+@ARTICLE{11205878,
+  author={Li, Minghan and Wen, Congcong and Tian, Yu and Shi, Min and Luo, Yan and Huang, Hao and Fang, Yi and Wang, Mengyu},
+  journal={IEEE Transactions on Medical Imaging}, 
+  title={FairFedMed: Benchmarking Group Fairness in Federated Medical Imaging with FairLoRA}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-1},
+  keywords={Biomedical imaging;Federated learning;Data models;Artificial intelligence;X-ray imaging;Three-dimensional displays;Robots;Ophthalmology;Benchmark testing;MIMICs;Group Fairness;Federated Learning;Medical Imaging;Low-rank Approximation (LoRA)},
+  doi={10.1109/TMI.2025.3622522}}
+```
+
+---
+
+<div align="center">
+
+**⭐ Star this repo if you find it helpful!**
+
+</div>

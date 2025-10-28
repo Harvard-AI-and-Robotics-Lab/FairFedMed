@@ -433,9 +433,131 @@ class OfficeDataset(Dataset):
 
         return image, label
 
+class WangGrantDataset(Dataset):
+    def  __init__(self, disease_type, base_path, site, attribute_type=None, attributes=None, modality_type=None, resolution=224, depth=3, train=True, transform=None):
+        self.task = 'cls'
+
+        self.base_path = base_path
+        self.data_path = base_path
+        self.modality_type = modality_type
+        self.attribute_type = attribute_type
+        self.attributes = attributes
+
+        if train:
+            csv_path = os.path.join(self.base_path, f'metatable_heart_biomarkers_binary_oneeye_clean_train.csv')
+        else:
+            csv_path = os.path.join(self.base_path, f'metatable_heart_biomarkers_binary_oneeye_clean_valid.csv')
+
+        # Load the CSV file into a DataFrame
+        df = pd.read_csv(csv_path)
+        assert 'id' in df.columns and 'righteye' in df.columns, 'file id must be included in the head'
+        # if righteye is 1.0 ==> OD else "OS", row by row
+        tmp_data_files = []
+        tmp_data_labels = []
+        for i in range(len(df)):
+            tmp_data_files.append('_'.join([
+                df['id'][i],
+                ('OD' if df['righteye'][i] == 1.0 else 'OS')
+            ]))
+
+            # columns: heart.attack,heart.ckmb,heart.troponin,heart.proBNP
+            tmp_data_labels.append(df[disease_type][i])
+
+        self.data_files = tmp_data_files
+        self.data_attrs = None
+        self.data_labels = tmp_data_labels
+
+        self.depth = depth  # num of input channels
+        self.resolution = resolution
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.data_files)
+
+    def __getitem__(self, item):
+        if self.modality_type in ['mac', 'onh', 'mosaic']:
+            data_file = os.path.join(
+                self.data_path, 
+                self.modality_type,
+                "_".join([self.data_files[item], self.modality_type+".tif"])
+            )
+            raw_data = np.array(Image.open(data_file).convert('RGB'))
+            img = np.transpose(raw_data, (2, 0, 1))  # 3 * h * w
+
+            if img.dtype == np.uint8:
+                img = img.astype(np.float32)  # or np.float64 for double precision
+            if img.shape[1] != self.resolution:
+                img_array = []
+                for img_ in img:
+                    tmp_img = resize(img_, (self.resolution, self.resolution))
+                    img_array.append(tmp_img[None,:,:])
+                img = np.concatenate(img_array, axis=0)
+            data_sample = img.astype(np.float32)
+            if self.transform is not None:
+                data_sample = self.transform(data_sample).float()
+
+        elif self.modality_type in ['onh_mac', 'mac_onh']:
+            data_file = os.path.join(
+                self.data_path, 
+                "mac",
+                "_".join([self.data_files[item], "mac.tif"])
+            )
+            raw_data = np.array(Image.open(data_file).convert('RGB'))
+            img = np.transpose(raw_data, (2, 0, 1))  # 3 * h * w
+
+            if img.dtype == np.uint8:
+                img = img.astype(np.float32)  # or np.float64 for double precision
+            if img.shape[1] != self.resolution:
+                img_array = []
+                for img_ in img:
+                    tmp_img = resize(img_, (self.resolution, self.resolution))
+                    img_array.append(tmp_img[None,:,:])
+                img = np.concatenate(img_array, axis=0)
+            data_sample = img.astype(np.float32)
+            if self.transform is not None:
+                data_sample = self.transform(data_sample).float()
+
+            data_file_onh = os.path.join(
+                self.data_path, 
+                "onh",
+                "_".join([self.data_files[item], "onh.tif"])
+            )
+            raw_data_onh = np.array(Image.open(data_file_onh).convert('RGB'))
+            img_onh = np.transpose(raw_data_onh, (2, 0, 1))  # 3 * h * w
+
+            if img_onh.dtype == np.uint8:
+                img_onh = img_onh.astype(np.float32)  # or np.float64 for double precision
+            if img_onh.shape[1] != self.resolution:
+                img_onh_array = []
+                for img_ in img_onh:
+                    tmp_img = resize(img_, (self.resolution, self.resolution))
+                    img_onh_array.append(tmp_img[None,:,:])
+                img_onh = np.concatenate(img_onh_array, axis=0)
+            data_sample_onh = img_onh.astype(np.float32)
+            if self.transform is not None:
+                data_sample_onh = self.transform(data_sample_onh).float()
+            
+            data_sample = np.concatenate((data_sample, data_sample_onh), axis=0)
+        
+        else:
+            raise NotImplementedError
+            
+        if self.task == 'cls':
+            label = torch.tensor(self.data_labels[item]).long()
+        else:
+            raise NotImplementedError
+        
+        if self.attribute_type is not None and self.attributes is not None:
+            attrs = torch.tensor([int(raw_data[k]) for k in self.attributes])
+        else:
+            attrs = torch.tensor([])
+
+        return data_sample, label, attrs
+
+
 
 class FairFedMedDataset(Dataset):
-    def __init__(self, base_path, site, attribute_type, attributes, modality_type=None, resolution=224, depth=3, train=True, transform=None):
+    def __init__(self, base_path, site, attribute_type=None, attributes=None, modality_type=None, resolution=224, depth=3, train=True, transform=None):
         self.task = 'cls'
 
         self.base_path = base_path
@@ -456,7 +578,7 @@ class FairFedMedDataset(Dataset):
 
         tmp_data_files = []
         tmp_data_attrs = []
-        if self.attribute_type in {'gender', 'maritalstatus', 'hispanic', 'language', 'ethnicity'}:
+        if self.attribute_type in {'gender', 'maritalstatus', 'hispanic', 'language', 'ethnicity', 'race'}:
             for x in self.data_files:
                 data_file = os.path.join(self.data_path, x)
                 raw_data = np.load(data_file, allow_pickle=True)
@@ -488,31 +610,6 @@ class FairFedMedDataset(Dataset):
         self.data_files = tmp_data_files
         self.data_attrs = tmp_data_attrs
 
-        # data_attrs_unique = list(set(self.data_attrs))
-        # data_attrs_num = {attr: 0 for attr in data_attrs_unique}
-        # for attr in self.data_attrs:
-        #     data_attrs_num[attr] += 1
-        
-        # tmp_data_files = []
-        # tmp_data_attrs = []
-        # if train:
-        #     data_attrs_num = {k: int(0.8 * v) for k, v in data_attrs_num.items()}
-        #     for x, attr in zip(self.data_files, self.data_attrs):
-        #         if data_attrs_num[attr] > 0:
-        #             data_attrs_num[attr] -= 1
-        #             tmp_data_files.append(x)
-        #             tmp_data_attrs.append(attr)
-
-        # else:
-        #     data_attrs_num = {k: v - int(0.8 * v) for k, v in data_attrs_num.items()}
-        #     for x, attr in zip(self.data_files[::-1], self.data_attrs[::-1]):
-        #         if data_attrs_num[attr] > 0:
-        #             data_attrs_num[attr] -= 1
-        #             tmp_data_files.append(x)
-        #             tmp_data_attrs.append(attr)
-        # self.data_files = tmp_data_files
-        # self.data_attrs = tmp_data_attrs
-        
         self.depth = depth  # num of input channels
         self.resolution = resolution
         self.transform = transform
@@ -620,10 +717,77 @@ class FairFedMedDataset(Dataset):
             label = torch.tensor(float(raw_data['glaucoma'].item())).long()
         else:
             raise NotImplementedError
-
-        attrs = torch.tensor([int(raw_data[k]) for k in self.attributes])
+        
+        if self.attribute_type is not None and self.attributes is not None:
+            attrs = torch.tensor([int(raw_data[k]) for k in self.attributes])
+        else:
+            attrs = torch.tensor([])
 
         return data_sample, label, attrs
+
+
+class FedChexMimicDataset(Dataset):
+    def __init__(self, base_path, site, attribute_type, attributes, modality_type=None, resolution=224, depth=3, train=True, transform=None):
+        self.task = 'cls'
+
+        self.base_path = base_path
+        if site == 1:
+            site_name = "chexpert"
+            self.data_path = base_path
+        elif site == 2:
+            site_name = "mimic"
+            self.data_path = os.path.join(base_path, 'files_336p')
+        else:
+            raise NotImplementedError
+        self.modality_type = modality_type
+        self.attribute_type = attribute_type
+        self.attributes = attributes
+
+        if train:
+            csv_path = os.path.join(self.base_path, f'meta_{site_name}_{attribute_type}_train.csv')
+        else:
+            csv_path = os.path.join(self.base_path, f'meta_{site_name}_{attribute_type}_test.csv')
+
+        # Load the CSV file into a DataFrame
+        df = pd.read_csv(csv_path)
+        assert 'filename' in df.columns, 'filename must be included in the head'
+        self.data_files = df['filename']
+        self.data_attrs = df[self.attribute_type+"_label"]
+        self.disease_labels = df['disease_label']
+        self.data_attributes = [df[k+"_label"] for k in self.attributes]
+        
+        self.depth = depth  # num of input channels
+        self.resolution = resolution
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.data_files)
+
+    def __getitem__(self, item):
+        data_file = os.path.join(self.data_path, self.data_files[item])
+        # Load the image file
+        image = Image.open(data_file).convert('L')
+        image = np.array(image)[None,:,:]  # shape: [1, H, W]
+
+        if image.dtype == np.uint8:
+            image = image.astype(np.float32)  # or np.float64 for double precision
+        if image.shape[1] != self.resolution:
+            img_array = []
+            for img in image:
+                tmp_img = resize(img, (self.resolution, self.resolution))
+                img_array.append(tmp_img[None,:,:])
+            image = np.concatenate(img_array, axis=0)
+        if self.depth > 1:
+            image = np.repeat(image, self.depth, axis=0)
+        data_sample = image.astype(np.float32)      
+
+        # all attributes labels
+        attrs = torch.tensor([int(attr_label[item]) for attr_label in self.data_attributes])
+
+        disease_label = self.disease_labels[item]
+        disease_label = torch.tensor(disease_label.item()).long()
+
+        return data_sample, disease_label, attrs
         
 
 class DomainNetDataset(Dataset):

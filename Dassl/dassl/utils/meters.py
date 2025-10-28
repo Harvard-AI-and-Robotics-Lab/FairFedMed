@@ -72,7 +72,8 @@ class MetricMeter:
         for k, v in input_dict.items():
             if isinstance(v, torch.Tensor):
                 v = v.item()
-            self.meters[k].update(v)
+            if float(v) != float('nan'):
+                self.meters[k].update(v)
 
     def __str__(self):
         output_str = []

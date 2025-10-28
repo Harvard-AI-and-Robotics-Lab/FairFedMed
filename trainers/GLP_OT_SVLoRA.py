@@ -8,7 +8,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 # from Dassl.dassl.engine import TRAINER_REGISTRY, TrainerX
 from Dassl.dassl.engine.trainer import TrainerX, create_ddp_model
-from Dassl.dassl.metrics import compute_accuracy
+from Dassl.dassl.metrics import compute_accuracy, compute_accuracy_binary
 from Dassl.dassl.utils import load_pretrained_weights, load_checkpoint
 from Dassl.dassl.optim import build_optimizer, build_lr_scheduler
 
@@ -337,7 +337,7 @@ class FairLoRALinear(nn.Module):
         rank=4, 
         alpha=0.4,
         global_s=False,
-        num_attrs=-1,  # num_groups
+        num_attrs=1,  # num_groups
     ):
         super(FairLoRALinear, self).__init__()
         self.original_linear = original_linear
@@ -422,11 +422,14 @@ class FairLoRALinear(nn.Module):
             ).to(self.lora_S_global.weight.dtype)
         nn.init.normal_(self.lora_B.weight)  
     
-    def weight(self, x, attr):
+    def weight(self, x, attr=None):
         with torch.no_grad():
-            attr_one_hot = F.one_hot(
-                attr, num_classes=self.num_attrs
-            ).to(x.device).to(x.dtype)  # bs x num_attrs
+            if attr is not None:
+                attr_one_hot = F.one_hot(
+                    attr, num_classes=self.num_attrs
+                ).to(x.device).to(x.dtype)  # bs x num_attrs
+            else:
+                attr_one_hot = torch.ones(1, self.num_attrs).to(x.device).to(x.dtype) / self.num_attrs
         lora_S = attr_one_hot @ self.lora_S.weight            # bs x r
         lora_S = torch.stack([torch.diag(s) for s in lora_S]) # bs x r x r
         if self.global_s:
@@ -444,25 +447,29 @@ class FairLoRALinear(nn.Module):
     def bias(self):
         return self.original_linear.bias
         
-    def forward(self, x, attr):
+    def forward(self, x, attr=None):
         y = self.original_linear(x)
 
         with torch.no_grad():
-            attr_one_hot = F.one_hot(
-                attr, num_classes=self.num_attrs
-            ).to(x.device).to(x.dtype)  # bs x num_groups
-            
-            lambda_group = 0.7
-            attr_one_hot = attr_one_hot * lambda_group + (1 - attr_one_hot) * (1-lambda_group)/(self.num_attrs-1)
+            if attr is not None:
+                attr_one_hot = F.one_hot(
+                    attr, num_classes=self.num_attrs
+                ).to(x.device).to(x.dtype)  # bs x num_groups
+                
+                lambda_group = 0.7
+                attr_one_hot = attr_one_hot * lambda_group + (1 - attr_one_hot) * (1-lambda_group)/(self.num_attrs-1)
+            else:
+                attr_one_hot = torch.ones(1, self.num_attrs).to(x.device).to(x.dtype) / self.num_attrs
 
-        lora_S = attr_one_hot @ self.lora_S.weight            # bs x r
+        lora_S = attr_one_hot @ self.lora_S.weight            # bs x num_groups @ num_groups x r -> bs x r
         lora_S = torch.stack([torch.diag(s) for s in lora_S]) # bs x r x r
         if self.global_s:
             lora_S = lora_S + torch.diag(self.lora_S_global.weight)
+        
         if self.is_1x1_conv:
             b, c_in, h, w = x.shape
             x = x.reshape(b, c_in, h*w).permute(2,0,1)
-
+        
         # oct b-scan data will be splited into multiple slices
         num_slices = x.shape[1] // lora_S.shape[0]
         lora_S = lora_S[:,None].repeat(1,num_slices,1,1).flatten(0,1)
@@ -500,7 +507,7 @@ def apply_lora_to_model(
     alpha=0.04, 
     lora_type='loRA', 
     global_s=False, 
-    num_attrs=-1,
+    num_attrs=1,
 ):
     named_modules = {name: module for name, module in model.named_modules()}
     for name, module in named_modules.items():
@@ -574,7 +581,7 @@ class CustomCLIP(nn.Module):
 
         self.n_cls = len(classnames)
         # Check if the dataset modality involves 3D input
-        self.is_3d_input = cfg.DATASET.MODALITY_TYPE in {'oct_bscans', 'oct_bscans_3d'}
+        self.is_3d_input = cfg.DATASET.MODALITY_TYPE in {'oct_bscans', 'oct_bscans_3d', 'mac_onh', 'onh_mac'}
         if self.is_3d_input:
             self.dim_per_3d_slice = cfg.DATASET.DIM_PER_3D_SLICE 
             self.proj_per_3d_slice = nn.Conv2d(in_channels=self.dim_per_3d_slice, 
@@ -669,7 +676,7 @@ class CustomCLIP(nn.Module):
 
     def forward(self, image, attr=None):
         b, c, h, w = image.shape
-        if self.cfg.DATASET.NAME == "FairFedMed":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic", "WangGrant"]:
             image = image / 255.
             if self.is_3d_input:
                 # split 3d input into multiple slices to process
@@ -748,6 +755,10 @@ class CustomCLIP(nn.Module):
         
         logit_scale = self.logit_scale.exp()
         logits = logit_scale * sim_op   
+
+        if self.cfg.DATASET.NAME in ["WangGrant"]:
+            # batch_size, 8,  --> batch_size*4, 2
+            logits = logits.reshape(-1, 2)
         
         return logits
 
@@ -762,11 +773,21 @@ class GLP_OT_SVLoRA(TrainerX):
         assert cfg.TRAINER.GLP_OT.PREC in ["fp16", "fp32", "amp"]
     
     def retrieval_attributes(self, attr_name):
-        return {
-            'race': ['Asian', 'Black', 'White'],
-            'language': ['English', 'Spanish', 'Others'],
-            'ethnicity': ['Non-hispanic', 'Hispanic'],
-        }[attr_name]
+        if self.cfg.DATASET.NAME == "FairFedMed":
+            return {
+                'race': ['Asian', 'Black', 'White'],
+                'language': ['English', 'Spanish', 'Others'],
+                'ethnicity': ['Non-hispanic', 'Hispanic'],
+                'gender': ['Male', 'Female'],
+            }[attr_name]
+        elif self.cfg.DATASET.NAME == "FedChexMimic":
+            return {
+                'race': ['White', 'Asian', 'Black'],
+                'gender': ['Male', 'Female'],
+                'age': ['0-60', '60+'],
+            }[attr_name]
+        else:
+            raise NotImplementedError
 
     def _get_layer_by_name(self, param_name):
         """
@@ -817,7 +838,7 @@ class GLP_OT_SVLoRA(TrainerX):
             alpha=self.cfg.TRAINER.GLP_OT_LORA.ALPHA,
             lora_type=self.cfg.TRAINER.GLP_OT_LORA.TYPE,
             global_s=self.cfg.TRAINER.GLP_OT_LORA.GLOBAL_S,
-            num_attrs=len(self.retrieval_attributes(self.cfg.DATASET.ATTRIBUTE_TYPE))
+            num_attrs=len(self.retrieval_attributes(self.cfg.DATASET.ATTRIBUTE_TYPE)) if not cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR else 1
         )
 
         for name, param in self.model.named_parameters():
@@ -860,12 +881,12 @@ class GLP_OT_SVLoRA(TrainerX):
         self.model = create_ddp_model(self.model, broadcast_buffers=False)
 
     def forward_backward(self, batch, is_last_client=False):
-        if self.cfg.DATASET.NAME == "FairFedMed":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             image, label, _, attr = self.parse_batch_train(batch)
         else:
             image, label = self.parse_batch_train(batch)
             attr = None
-
+        
         prec = self.cfg.TRAINER.GLP_OT.PREC
         if prec == "amp":
             with autocast():
@@ -877,8 +898,11 @@ class GLP_OT_SVLoRA(TrainerX):
             self.scaler.update()
         else:
             output = self.model(image, attr)
-            # loss = F.cross_entropy(output, label)
             if attr is None:
+                if self.cfg.DATASET.NAME in ["WangGrant"]:
+                    # batch_size, 4 
+                    label = label.reshape(-1)
+                    
                 loss = F.cross_entropy(output, label)
             else:
                 cls_loss = F.cross_entropy(output, label)
@@ -922,23 +946,28 @@ class GLP_OT_SVLoRA(TrainerX):
                 # Weight for fairness regularization
                 lambda_fairness = self.cfg.TRAINER.LAMBDA_FAIRNESS  # You can adjust this to control the fairness strength
                 loss = cls_loss + lambda_fairness * fairness_loss
-                
+            
             self.model_backward_and_update(loss)
 
         if output.shape == label.shape:
             output_prob = output.sigmoid()
+            output_label = (output_prob >= 0.5).to(label.dtype)
         else:
             output_prob = output.softmax(-1)
-
+            output_label = output_prob.argmax(dim=-1)
+        
         loss_summary = {
             "loss": loss.item(),
-            "acc": compute_accuracy(output, label)[0].item(),
+            "acc": compute_accuracy(output, label)[0].item() 
         }
-        if self.cfg.DATASET.NAME == "FairFedMed":
+        
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic", "WangGrant"]:
             if len(set(label)) == 1:
+                print("Single label",label, "cannot compute auc")
                 loss_summary["auc"] = 1
             else:
-                loss_summary["auc"] = compute_auc(output_prob, label).item()
+                auc = compute_auc(output_prob, label)
+                loss_summary["auc"] = auc if isinstance(auc, float) else auc.item()
 
         if (self.batch_idx + 1) == self.num_batches:
             self.update_lr()
@@ -951,15 +980,20 @@ class GLP_OT_SVLoRA(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
 
-        if self.cfg.DATASET.NAME == "FairFedMed":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             # input = input / 255.
             # input = input - self.pixel_mean.reshape(1,-1,1,1).to(input.device)
             # input = input / self.pixel_std.reshape(1,-1,1,1).to(input.device)
 
             attrs = batch["attrs"].t()
             tgt_attr_idx = self.cfg.DATASET.ATTRIBUTES.index(self.cfg.DATASET.ATTRIBUTE_TYPE) 
-        
-            return input, label, attrs, attrs[tgt_attr_idx]
+
+            if self.cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR:
+                tgt_attr = None
+            else:
+                tgt_attr = attrs[tgt_attr_idx]
+
+            return input, label, attrs, tgt_attr
         else:
             return input, label
 
@@ -969,15 +1003,20 @@ class GLP_OT_SVLoRA(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
 
-        if self.cfg.DATASET.NAME == "FairFedMed":
+        if self.cfg.DATASET.NAME in ["FairFedMed", "FedChexMimic"]:
             # input = input / 255.
             # input = input - self.pixel_mean.reshape(1,-1,1,1).to(input.device)
             # input = input / self.pixel_std.reshape(1,-1,1,1).to(input.device)
 
             attrs = batch["attrs"].t()
             tgt_attr_idx = self.cfg.DATASET.ATTRIBUTES.index(self.cfg.DATASET.ATTRIBUTE_TYPE) 
+
+            if self.cfg.TRAINER.GLP_OT_LORA.DISABLE_ATTR:
+                tgt_attr = None
+            else:
+                tgt_attr = attrs[tgt_attr_idx]
             
-            return input, label, attrs, attrs[tgt_attr_idx]
+            return input, label, attrs, tgt_attr
         else:
             return input, label
 

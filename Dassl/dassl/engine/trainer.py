@@ -701,6 +701,7 @@ class TrainerX(SimpleTrainer):
             else:
                 loss_summary = self.forward_backward(batch, is_last_client=is_last_client)
             batch_time.update(time.time() - end)
+            print("loss_summary",loss_summary)
             losses.update(loss_summary)
 
             meet_freq = (self.batch_idx + 1) % self.cfg.TRAIN.PRINT_FREQ == 0
@@ -724,7 +725,7 @@ class TrainerX(SimpleTrainer):
                 info += [f"eta {eta}"]
                 info += [f"user {idx}"]
                 print(" ".join(info))
-
+            
             n_iter = self.epoch * self.num_batches + self.batch_idx
             if global_epoch >= 0:
                 max_per_epoch = self.max_epoch*self.num_batches
