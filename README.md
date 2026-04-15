@@ -4,7 +4,7 @@
 
 [![Paper](https://img.shields.io/badge/Paper-TMI%202024-blue)](https://ieeexplore.ieee.org/document/11205878)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.00873-b31b1b.svg)](https://arxiv.org/abs/2508.00873)
-[![Dataset](https://img.shields.io/badge/Dataset-Google%20Drive-green)](https://huggingface.co/datasets/harvardairobotics/FairFedMed)
+[![Dataset](https://img.shields.io/badge/Dataset-Hugging%20Face-green)](https://huggingface.co/datasets/harvardairobotics/FairFedMed)
 
 </div>
 
@@ -33,7 +33,7 @@ Fairness-aware FL via SVD-based low-rank adaptation
 
 ## 📦 Dataset
 
-📥 **Download**: [FairFedMed Dataset on Google Drive](https://huggingface.co/datasets/harvardairobotics/FairFedMed)
+📥 **Download**: [FairFedMed Dataset on Hugging Face](https://huggingface.co/datasets/harvardairobotics/FairFedMed)
 
 ### 🏥 FairFedMed-Oph
 - **Modalities**: Paired 2D SLO fundus images and 3D OCT B-Scans
